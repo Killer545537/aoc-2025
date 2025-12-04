@@ -1,3 +1,5 @@
+mod Day03;
+
 use anyhow::{Result, anyhow};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
