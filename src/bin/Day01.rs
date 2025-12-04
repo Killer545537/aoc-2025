@@ -4,13 +4,11 @@ use std::io::{BufRead, BufReader};
 use std::num::ParseIntError;
 use thiserror::Error;
 
-#[derive(Debug)]
 enum Direction {
     Left,
     Right,
 }
 
-#[derive(Debug)]
 struct Rotation {
     direction: Direction,
     amount: i32,
@@ -87,7 +85,7 @@ impl TryFrom<&str> for Rotation {
 fn read_rotations(file: File) -> Result<Vec<Rotation>> {
     BufReader::new(file)
         .lines()
-        .map(|line| line.map_err(Into::into)) // Convert io::Error to anyhow::Error
+        .map(|line| line.map_err(Into::into))
         .filter_map(|line_result| {
             match line_result {
                 Ok(line) => {
@@ -98,7 +96,7 @@ fn read_rotations(file: File) -> Result<Vec<Rotation>> {
                         Some(Ok(line.to_string()))
                     }
                 }
-                Err(e) => Some(Err(e)), // Propagate IO errors
+                Err(e) => Some(Err(e)),
             }
         })
         .map(|line_result| {
