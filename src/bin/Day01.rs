@@ -85,9 +85,7 @@ impl TryFrom<&str> for Rotation {
 }
 
 fn read_rotations(file: File) -> Result<Vec<Rotation>> {
-    let reader = BufReader::new(file);
-
-    reader
+    BufReader::new(file)
         .lines()
         .map(|line| line.map_err(Into::into)) // Convert io::Error to anyhow::Error
         .filter_map(|line_result| {
@@ -127,35 +125,35 @@ fn part_1(position: i32, rotations: &[Rotation]) -> i32 {
         .count() as i32
 }
 
-fn part_2(position: i32, rotations: &[Rotation]) -> i32 {
-    rotations
-        .iter()
-        .map(|rotation| match rotation.direction {
-            Direction::Left => -rotation.amount,
-            Direction::Right => rotation.amount,
+fn part_2(mut position: i32, rotations: &[Rotation]) -> i32 {
+    let div_mod = |dividend: i32, divisor: i32| -> (i32, i32) {
+        if dividend < 0 {
+            (dividend / -divisor, dividend % divisor)
+        } else {
+            (dividend / divisor, dividend % divisor)
+        }
+    };
+
+    rotations.iter().map(|rotation| match rotation.direction {
+        Direction::Left => -rotation.amount,
+        Direction::Right => rotation.amount
+    })
+        .map(|turn| {
+            let (div, mod_val) = div_mod(turn, 100);
+            let mut crossings = div;
+
+            if turn < 0 {
+                if position != 0 && position + mod_val <= 0 {
+                    crossings += 1;
+                }
+            } else if position + mod_val >= 100 {
+                crossings += 1;
+            }
+
+            position = ((position + turn) % 100 + 100) % 100;
+            crossings
         })
-        .scan(position, |pos, signed_rotation| {
-            let old_pos = *pos;
-            let new_pos_raw = old_pos + signed_rotation;
-
-            // Check if we crossed the 0 boundary
-            let crossed_zero = if signed_rotation > 0 {
-                // Going right: crossed if we went from < 100 to >= 100
-                old_pos < 100 && new_pos_raw >= 100
-            } else if signed_rotation < 0 {
-                // Going left: crossed if we went from >= 0 to < 0
-                old_pos >= 0 && new_pos_raw < 0
-            } else {
-                false
-            };
-
-            // Normalize position for next iteration
-            *pos = ((new_pos_raw % 100) + 100) % 100;
-
-            Some(crossed_zero) // Always return Some to continue iteration
-        })
-        .filter(|&crossed| crossed)
-        .count() as i32
+        .sum()
 }
 
 fn main() -> Result<()> {
