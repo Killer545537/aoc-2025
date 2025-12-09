@@ -7,7 +7,6 @@ use std::{
 use anyhow::Result;
 use thiserror::Error;
 
-#[derive(Debug)]
 enum Cell {
     Start,
     Empty,
@@ -33,10 +32,9 @@ impl TryFrom<char> for Cell {
     }
 }
 
-#[derive(Debug)]
 struct Grid(Vec<Vec<Cell>>);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct BeamState {
     x: usize,
     y: usize,
