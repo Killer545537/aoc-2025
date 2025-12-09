@@ -1,5 +1,3 @@
-mod Day03;
-
 use anyhow::{Result, anyhow};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -134,10 +132,12 @@ fn part_2(mut position: i32, rotations: &[Rotation]) -> i32 {
         }
     };
 
-    rotations.iter().map(|rotation| match rotation.direction {
-        Direction::Left => -rotation.amount,
-        Direction::Right => rotation.amount
-    })
+    rotations
+        .iter()
+        .map(|rotation| match rotation.direction {
+            Direction::Left => -rotation.amount,
+            Direction::Right => rotation.amount,
+        })
         .map(|turn| {
             let (div, mod_val) = div_mod(turn, 100);
             let mut crossings = div;

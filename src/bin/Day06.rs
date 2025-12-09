@@ -77,6 +77,84 @@ fn parse_input(file: File) -> Result<Vec<ColumnData>> {
         .collect()
 }
 
+fn parse_input_right_to_left(file: File) -> Result<Vec<ColumnData>> {
+    let reader = BufReader::new(file);
+    let lines: Vec<String> = reader.lines().collect::<Result<Vec<_>, _>>()?;
+
+    // Convert to character grid
+    let grid: Vec<Vec<char>> = lines.iter().map(|line| line.chars().collect()).collect();
+
+    // Transpose to get columns
+    let max_len = grid.iter().map(|row| row.len()).max().unwrap_or(0);
+    let mut cols = Vec::new();
+
+    for col_idx in 0..max_len {
+        let mut col = Vec::new();
+        for row in &grid {
+            if col_idx < row.len() {
+                col.push(row[col_idx]);
+            } else {
+                col.push(' ');
+            }
+        }
+        cols.push(col);
+    }
+
+    // Group columns by space-only columns
+    let mut groups = Vec::new();
+    let mut current_group = Vec::new();
+
+    for col in cols {
+        if col.iter().all(|&c| c == ' ') {
+            if !current_group.is_empty() {
+                groups.push(current_group);
+                current_group = Vec::new();
+            }
+        } else {
+            current_group.push(col);
+        }
+    }
+
+    if !current_group.is_empty() {
+        groups.push(current_group);
+    }
+
+    // Convert groups to ColumnData
+    let mut result = Vec::new();
+    for group in groups {
+        if group.is_empty() {
+            continue;
+        }
+
+        // Get the operator from the last character of the first column
+        let operator_char = *group[0]
+            .last()
+            .ok_or_else(|| anyhow::anyhow!("Empty column"))?;
+        let operator = match operator_char {
+            '+' => Operator::Plus,
+            '*' => Operator::Multiply,
+            _ => return Err(anyhow::anyhow!("Invalid operator: {}", operator_char)),
+        };
+
+        // Build numbers from each column (excluding the last character)
+        let mut numbers = Vec::new();
+        for col in &group {
+            let number_chars: String = col[..col.len().saturating_sub(1)].iter().collect();
+            let number_str = number_chars.trim();
+            if !number_str.is_empty() {
+                numbers.push(number_str.parse::<u128>()?);
+            }
+        }
+
+        result.push(ColumnData {
+            numbers,
+            operation: operator,
+        });
+    }
+
+    Ok(result)
+}
+
 fn part_1(columns: Vec<ColumnData>) -> u128 {
     columns.iter().map(|col| col.compute_result()).sum()
 }
@@ -84,23 +162,11 @@ fn part_1(columns: Vec<ColumnData>) -> u128 {
 fn main() -> Result<()> {
     let file = File::open("inputs/input06.txt")?;
     let columns = parse_input(file)?;
-
     println!("Part 1: {}", part_1(columns));
 
-    let file2 = File::open("inputs/input06.txt")?;
-    let cephalopod_columns = parse_right_to_left(file2)?;
+    let file = File::open("inputs/input06.txt")?;
+    let columns = parse_input_right_to_left(file)?;
+    println!("Part 2: {}", part_1(columns));
 
-    println!("\nCephalopod columns:");
-    for (i, col) in cephalopod_columns.iter().enumerate() {
-        println!(
-            "Column {}: numbers {:?}, op {:?}, result = {}",
-            i,
-            col.numbers,
-            col.operation,
-            col.compute_result()
-        );
-    }
-
-    println!("Part 2: {}", part_1(cephalopod_columns));
     Ok(())
 }
