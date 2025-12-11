@@ -3,7 +3,7 @@ use good_lp::{Expression, Solution, SolverModel, Variable, default_solver, varia
 use std::{collections::HashSet, fs::File, io::Read};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum Light {
     On,
     Off,
@@ -37,7 +37,7 @@ impl TryFrom<char> for Light {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 struct LightDiagram(Vec<Light>);
 
 impl LightDiagram {
@@ -73,7 +73,7 @@ impl TryFrom<&str> for LightDiagram {
 
 type Button = u8;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 struct ButtonWiring(Vec<HashSet<Button>>);
 
 impl TryFrom<&str> for ButtonWiring {
@@ -117,7 +117,7 @@ impl TryFrom<&str> for ButtonWiring {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 struct JoltageRequirements(Vec<u8>);
 
 impl TryFrom<&str> for JoltageRequirements {
@@ -147,7 +147,6 @@ impl TryFrom<&str> for JoltageRequirements {
     }
 }
 
-#[derive(Debug)]
 struct Machine {
     light_diagram: LightDiagram,
     button_wiring: ButtonWiring,
