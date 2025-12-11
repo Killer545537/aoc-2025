@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use good_lp::{Expression, Solution, SolverModel, Variable, default_solver, variable, variables};
 use std::{collections::HashSet, fs::File, io::Read};
 use thiserror::Error;
 
@@ -245,91 +246,6 @@ fn min_toggles_recursive(
     }
 }
 
-fn min_toggles_joltage_only_recursive(
-    current_joltage: &mut Vec<u8>,
-    target_joltage: &JoltageRequirements,
-    button_groups: &[HashSet<Button>],
-    group_index: usize,
-    memo: &mut std::collections::HashMap<(Vec<u8>, usize), Option<usize>>,
-) -> Option<usize> {
-    // Check memo
-    let key = (current_joltage.clone(), group_index);
-    if let Some(&result) = memo.get(&key) {
-        return result;
-    }
-
-    // Early pruning: if any joltage exceeds target, this path is invalid
-    for (current, &target) in current_joltage.iter().zip(target_joltage.0.iter()) {
-        if *current > target {
-            memo.insert(key, None);
-            return None;
-        }
-    }
-
-    if *current_joltage == target_joltage.0 {
-        memo.insert(key, Some(0));
-        return Some(0);
-    }
-
-    if group_index >= button_groups.len() {
-        memo.insert(key, None);
-        return None;
-    }
-
-    let group = &button_groups[group_index];
-    let mut best_cost = None;
-
-    // Try using this group 0, 1, 2, ... times (up to reasonable limit)
-    let max_uses = target_joltage.0.iter().max().unwrap_or(&0) * 2;
-
-    for uses in 0..=max_uses as usize {
-        // Apply the group 'uses' times
-        for _ in 0..uses {
-            for &button in group {
-                if let Some(jolt) = current_joltage.get_mut(button as usize) {
-                    *jolt = jolt.saturating_add(1);
-                }
-            }
-        }
-
-        // Check if this path is still valid (early pruning)
-        let mut valid = true;
-        for (current, &target) in current_joltage.iter().zip(target_joltage.0.iter()) {
-            if *current > target {
-                valid = false;
-                break;
-            }
-        }
-
-        if valid {
-            if let Some(cost) = min_toggles_joltage_only_recursive(
-                current_joltage,
-                target_joltage,
-                button_groups,
-                group_index + 1,
-                memo,
-            ) {
-                let total_cost = cost + uses;
-                best_cost = Some(best_cost.map_or(total_cost, |prev: usize| prev.min(total_cost)));
-            }
-        }
-
-        // Undo the group applications
-        for _ in 0..uses {
-            for &button in group {
-                if let Some(jolt) = current_joltage.get_mut(button as usize) {
-                    if *jolt > 0 {
-                        *jolt -= 1;
-                    }
-                }
-            }
-        }
-    }
-
-    memo.insert(key, best_cost);
-    best_cost
-}
-
 fn solve_machine(machine: &Machine) -> Option<usize> {
     let target = &machine.light_diagram;
     let mut current = LightDiagram::new(target.0.len());
@@ -338,19 +254,63 @@ fn solve_machine(machine: &Machine) -> Option<usize> {
     min_toggles_recursive(&mut current, target, button_groups, 0)
 }
 
-fn solve_machine_joltage_only(machine: &Machine) -> Option<usize> {
-    let target_joltage = &machine.joltage_requirements;
-    let mut current_joltage = vec![0u8; target_joltage.0.len()];
+fn solve_machine_joltage(machine: &Machine) -> Option<usize> {
+    let target = &machine.joltage_requirements.0;
     let button_groups = &machine.button_wiring.0;
-    let mut memo = std::collections::HashMap::new();
 
-    min_toggles_joltage_only_recursive(
-        &mut current_joltage,
-        target_joltage,
-        button_groups,
-        0,
-        &mut memo,
-    )
+    if target.is_empty() {
+        return Some(0);
+    }
+
+    // Check if problem is feasible
+    for (pos, &target_joltage) in target.iter().enumerate() {
+        let mut any_button_affects_pos = false;
+        for group in button_groups.iter() {
+            if group.contains(&(pos as u8)) {
+                any_button_affects_pos = true;
+                break;
+            }
+        }
+        if !any_button_affects_pos && target_joltage > 0 {
+            return None;
+        }
+    }
+
+    // Create variable per button (number of times it got pressed)
+    let mut vars = variables!();
+    let presses: Vec<Variable> = (0..button_groups.len())
+        .map(|_| vars.add(variable().min(0).integer()))
+        .collect();
+
+    // Minimize total presses
+    let total_presses: Expression = presses.iter().sum();
+    let mut problem = vars.minimise(total_presses).using(default_solver);
+
+    // For each jolt counter, sum of relevant presses must equal the target joltage
+    for (jolt_idx, &target_joltage) in target.iter().enumerate() {
+        let mut expr = Expression::from(0.0);
+
+        for (btn_idx, relevant_idxs) in button_groups.iter().enumerate() {
+            // If button is relevant, add its press variable to the constraint
+            if relevant_idxs.contains(&(jolt_idx as u8)) {
+                expr += presses[btn_idx];
+            }
+        }
+
+        // Sum of relevant presses == target joltage
+        problem.add_constraint(expr.eq(target_joltage as f64));
+    }
+
+    match problem.solve() {
+        Ok(solution) => {
+            let total = presses
+                .iter()
+                .map(|v| solution.value(*v).round() as usize)
+                .sum();
+            Some(total)
+        }
+        Err(_) => None,
+    }
 }
 
 fn part_1(machines: &[Machine]) -> usize {
@@ -363,7 +323,7 @@ fn part_1(machines: &[Machine]) -> usize {
 fn part_2(machines: &[Machine]) -> usize {
     machines
         .iter()
-        .filter_map(|machine| solve_machine_joltage_only(machine))
+        .filter_map(|machine| solve_machine_joltage(machine))
         .sum()
 }
 
